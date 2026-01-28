@@ -1,7 +1,20 @@
-# kaspi_parser
+# Kaspi Bulk Parser + Offers Enricher
 
-# Data collection
-node index.js
+Парсер товаров Kaspi по категориям + обогащение (offers/merchants/prices) через `https://kaspi.kz/yml/offer-view/offers/...` **без Playwright**, только Axios.
+Сохранение идёт в **MongoDB** (upsert), можно останавливать и запускать снова.
 
-# Offer collection 
-node enrich_offer.js
+---
+
+## Требования
+
+- Node.js 18+ (у тебя Node 25 ок)
+- Docker Desktop
+- MongoDB в Docker
+
+---
+
+## 1) Запуск MongoDB
+
+### Вариант A (новый контейнер)
+```bash
+docker run -d --name kaspi-mongo -p 27017:27017 mongo:7
