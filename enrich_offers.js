@@ -4,6 +4,7 @@ import pLimit from "p-limit";
 import { fetchOffersBySku } from "./src/utils_offers.js";
 import { getProductsCollection } from "./src/mongo.js";
 import { OFFERS } from "./src/config.js";
+console.log("[ENRICH] script file:", import.meta.url);
 
 
 const limit = pLimit(OFFERS.CONCURRENCY);
@@ -55,7 +56,12 @@ async function enrich() {
   }
 
   await Promise.all(tasks);
+  console.log("[ENRICH] tasks:", tasks.length);
+
   console.log("✅ Enrichment finished");
+  console.log("[ENRICH] exiting now");
+process.exit(0);
+
 }
 
 enrich().catch(console.error);
