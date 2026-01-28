@@ -33,6 +33,14 @@ function readCategoriesJson() {
 
   throw new Error("categories_b.json must be an array of urls (or {urls:[]})");
 }
+function normalizeListUrl(url) {
+  // filters -> results (именно results обычно даёт пагинацию)
+  if (url.includes("/yml/product-view/pl/filters")) {
+    return url.replace("/yml/product-view/pl/filters", "/yml/product-view/pl/results");
+  }
+  return url;
+}
+
 
 function setPage(url, page) {
   // аккуратно меняем/добавляем page=
@@ -42,16 +50,17 @@ function setPage(url, page) {
 }
 
 function pickItems(resp) {
-  // Kaspi API бывает разное — поэтому делаем “универсальный” парсинг
   if (!resp) return [];
 
-  // часто: { data: { items: [...] } }
   const candidates = [
     resp?.data?.items,
     resp?.data?.products,
+    resp?.data?.cards,     // ✅ ДОБАВИЛИ
+    resp?.data?.cardsV2,   // ✅ на будущее
     resp?.data,
     resp?.items,
     resp?.products,
+    resp?.cards,           // ✅ если вдруг без data
     resp?.result,
     resp?.results,
   ];
@@ -60,9 +69,9 @@ function pickItems(resp) {
     if (Array.isArray(c)) return c;
   }
 
-  // иногда: { data: { ... , items: [...] } } — уже выше
   return [];
 }
+
 
 function pickHasMore(resp, items, page) {
   // если API отдаёт totalPages/pageCount — используем
@@ -84,24 +93,25 @@ function pickHasMore(resp, items, page) {
 
 async function parseCategory(apiUrl) {
   const city = extractCityFromUrl(apiUrl);
-  let page = 0;
+  const baseUrl = normalizeListUrl(apiUrl);
+
+  let page = 1;          // ✅ Kaspi чаще page начинается с 1
   let totalAdded = 0;
 
-  while (page < CONFIG.MAX_PAGE) {
-    const url = setPage(apiUrl, page);
+  while (true) {
+    const url = setPage(baseUrl, page);
     const resp = await fetchWithRetry(url);
 
     const items = pickItems(resp);
-
-    if (!items.length) break;
+    if (!items.length) break; // ✅ дошли до конца
 
     for (const item of items) {
-      // ✅ НИКАКОГО isMagnumProduct — берём все товары
       const product = buildProductObject(item, city);
       const added = await addProduct(product);
       if (added) totalAdded++;
     }
 
+    // Если у API есть totalPages/pageCount — остановимся аккуратно
     if (!pickHasMore(resp, items, page)) break;
 
     page++;
@@ -110,6 +120,7 @@ async function parseCategory(apiUrl) {
 
   return totalAdded;
 }
+
 
 export async function startParsing() {
   const urls = readCategoriesJson();

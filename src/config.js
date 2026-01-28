@@ -35,7 +35,7 @@ export const AXIOS_CONFIG = {
 };
 // OFFERS / enrichment config
 export const OFFERS = {
-  CITY_ID: "750000000",
+  CITY_ID: "710000000",
   USE_MAGNUM_ZONE: false, // false = ВСЕ продавцы
   ZONE_ID: "Magnum_ZONE1",
   LIMIT: 20,
