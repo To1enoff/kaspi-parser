@@ -13,8 +13,19 @@
 
 ---
 
-## 1) Запуск MongoDB
-
-### Вариант A (новый контейнер)
+## 1) Установка зависимостей 
 ```bash
 docker run -d --name kaspi-mongo -p 27017:27017 mongo:7
+
+npm install
+npm i dotenv
+```
+## 2) Запуск парсинга товаров
+```bash
+node index.js
+```
+## 3) Enrich Offers
+```bash
+node enrich_offers.js
+```
+
