@@ -1,86 +1,54 @@
-import { v4 as uuidv4 } from 'uuid';
-import { MERCHANT } from './config.js';
-import { extractMeasureAndWeight, fixProductUrl, toIntSafe } from './utils.js';
+// src/product.js
+import { extractMeasureAndWeight, toIntSafe } from "./utils.js";
 
-export const buildProductObject = (item, city) => {
-  const now = new Date().toISOString();
-  const id = item.id ? String(item.id) : uuidv4();
+export function buildProductObject(item, city = null) {
+  const id = item?.id ? String(item.id) : null;
 
-  const previewImages = Array.isArray(item.previewImages) ? item.previewImages : [];
-  const images = previewImages
-    .map(img => img.large || img.url || null)
-    .filter(Boolean);
+  const title = item?.title || null;
 
-  // Extract measure and weight/volume from title
-  const { measure, weight, volume } = extractMeasureAndWeight(item.title);
+  const { measure, weight, volume } = extractMeasureAndWeight(title || "");
 
-  // Fix product URLs to include /shop
-  const baseUrl = item.shopLink ? `https://kaspi.kz${item.shopLink}` : (item.url || null);
-  const fixedUrl = fixProductUrl(baseUrl);
+  // ✅ цены из твоего sample
+  const price = toIntSafe(item?.unitSalePrice ?? item?.unitPrice ?? 0);
+
+  // ✅ url из shopLink (относительный)
+  const url = item?.shopLink ? `https://kaspi.kz${item.shopLink}` : (id ? `https://kaspi.kz/shop/p/${id}` : null);
+
+  // ✅ картинка из previewImages
+  const image =
+    Array.isArray(item?.previewImages) && item.previewImages.length
+      ? (item.previewImages[0].large || item.previewImages[0].medium || item.previewImages[0].small || null)
+      : null;
+
+  // ✅ категория
+  const category_full_path = Array.isArray(item?.category) ? item.category.join(" > ") : null;
+
+  // ✅ отзывы и рейтинг
+  const rating = item?.rating ?? null;
+  const review_count = toIntSafe(item?.reviewsQuantity ?? 0);
+
+  // ⚠️ merchantName в listing-ответе нет (по sample)
+  const merchantName = null;
 
   return {
-    _id: uuidv4(),
-    mercant_id: MERCHANT.ID,
-    mercant_name: MERCHANT.NAME,
+    id,
+    title,
+    city,
 
-    product_id: null,
-    id: id,
+    price,
+    rating: rating == null ? null : Number(rating),
+    review_count,
 
-    title: item.title || null,
-    description: null,
+    url,
+    image,
 
-    url: fixedUrl,
-    url_picture: images.length ? images[0] : null,
+    category_full_path,
+    merchantName,
 
-    category_full_path: item.category ? item.category.join(' > ') : null,
-    brand: item.brand || null,
-    sub_category: null,
+    measure,
+    weight: weight ?? null,   // это “из названия”, не item.weight (у item.weight = 0)
+    volume,
 
-    time_scrap: now,
-    measure: measure,
-    city: city,
-
-    matched_uuid: null,
-
-    price: toIntSafe(item.unitPrice || item.price || 0),
-    originalPrice: toIntSafe(
-      item.unitSalePrice ||
-      item.unitPriceBeforeDiscount ||
-      item.unitPrice ||
-      item.price ||
-      0
-    ),
-
-    discount: toIntSafe(item.discount || 0),
-    currency: MERCHANT.CURRENCY,
-
-    images: images,
-
-    inStock: item.inStock == null ? true : Boolean(item.inStock),
-    stockQuantity: null,
-
-    weight: weight,
-    volume: volume,
-
-    characteristics: [],
-
-    rating: item.rating == null ? null : item.rating,
-    reviewCount: toIntSafe(item.reviewsQuantity || 0),
-
-    productUrl: fixedUrl,
-    productId: id,
-
-    parsedAt: now,
-    lastUpdated: now,
-
-    source: MERCHANT.SOURCE,
-    isActive: true,
-
-    parsingErrors: [],
-
-    createdAt: now,
-    updatedAt: now,
-
-    __v: 0
+    parsedAt: new Date().toISOString(),
   };
-};
+}

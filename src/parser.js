@@ -1,138 +1,135 @@
-import fs from 'fs';
-import { v4 as uuidv4 } from 'uuid';
-import CATEGORY_URLS from '../data/categories.json' assert { type: 'json' };
-import { CONFIG } from './config.js';
-import {
-  addProduct,
-  allResults,
-  extractCityFromUrl,
-  fetchWithRetry,
-  isMagnumProduct,
-  sleep,
-} from './utils.js';
-import { buildProductObject } from './product.js';
+// src/parser.js
+import fs from "fs";
+import path from "path";
+import { fileURLToPath } from "url";
 
-// ==========================================
-// PROCESS A SINGLE CATEGORY
-// ==========================================
-const processCategory = async (categoryUrl, categoryIndex, totalCategories) => {
-  const categoryName = decodeURIComponent(
-    (categoryUrl.match(/category%3A([^&]+)/) || [null, `Category ${categoryIndex}`])[1] || 
-    `Category ${categoryIndex}`
-  );
-  
-  const city = extractCityFromUrl(categoryUrl);
-  
-  console.log(`[${categoryIndex}/${totalCategories}] Starting: ${categoryName} (City: ${city || 'Unknown'})`);
+import { CONFIG } from "./config.js";
+import { fetchWithRetry, extractCityFromUrl, addProduct, finalizeStorage, sleep } from "./utils.js";
+import { buildProductObject } from "./product.js"; // ✅ тут должен быть buildProductObject (с merchantName)
 
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
+function readCategoriesJson() {
+  const p = path.join(__dirname, "..", "data", "categories_b.json");
+  const raw = fs.readFileSync(p, "utf8");
+  const json = JSON.parse(raw);
+
+  // поддержим 2 формата:
+  // 1) ["https://....", "..."]
+  // 2) [{ url: "https://..." }, { api: "https://..." }]
+  if (Array.isArray(json)) {
+    return json
+      .map((x) => {
+        if (typeof x === "string") return x;
+        if (x && typeof x === "object") return x.url || x.api || x.endpoint || null;
+        return null;
+      })
+      .filter(Boolean);
+  }
+
+  // если вдруг { urls: [...] }
+  if (json?.urls && Array.isArray(json.urls)) return json.urls.filter((x) => typeof x === "string");
+
+  throw new Error("categories_b.json must be an array of urls (or {urls:[]})");
+}
+
+function setPage(url, page) {
+  // аккуратно меняем/добавляем page=
+  const u = new URL(url);
+  u.searchParams.set("page", String(page));
+  return u.toString();
+}
+
+function pickItems(resp) {
+  // Kaspi API бывает разное — поэтому делаем “универсальный” парсинг
+  if (!resp) return [];
+
+  // часто: { data: { items: [...] } }
+  const candidates = [
+    resp?.data?.items,
+    resp?.data?.products,
+    resp?.data,
+    resp?.items,
+    resp?.products,
+    resp?.result,
+    resp?.results,
+  ];
+
+  for (const c of candidates) {
+    if (Array.isArray(c)) return c;
+  }
+
+  // иногда: { data: { ... , items: [...] } } — уже выше
+  return [];
+}
+
+function pickHasMore(resp, items, page) {
+  // если API отдаёт totalPages/pageCount — используем
+  const totalPages =
+    resp?.data?.totalPages ??
+    resp?.totalPages ??
+    resp?.data?.pageCount ??
+    resp?.pageCount ??
+    null;
+
+  if (typeof totalPages === "number" && Number.isFinite(totalPages)) {
+    return page < totalPages;
+  }
+
+  // если есть total и limit/size — можно вычислить, но не всегда надёжно
+  // fallback: есть items => пробуем следующую страницу, пока не станет пусто
+  return items.length > 0;
+}
+
+async function parseCategory(apiUrl) {
+  const city = extractCityFromUrl(apiUrl);
   let page = 0;
-  const hasPageParam = /page=\d+/.test(categoryUrl);
-  let categoryMatches = 0;
-  let keepGoing = true;
+  let totalAdded = 0;
 
-  while (keepGoing) {
-    if (CONFIG.MAX_PAGE != null && page > CONFIG.MAX_PAGE) break;
+  while (page < CONFIG.MAX_PAGE) {
+    const url = setPage(apiUrl, page);
+    const resp = await fetchWithRetry(url);
 
-    const pageUrls = [];
-    for (let i = 0; i < CONFIG.PAGE_PARALLEL; i++) {
-      const p = page + i;
-      if (CONFIG.MAX_PAGE != null && p > CONFIG.MAX_PAGE) break;
-      
-      let paginatedUrl;
-      if (hasPageParam) {
-        paginatedUrl = categoryUrl.replace(/page=\d+/, `page=${p}`);
-      } else {
-        paginatedUrl = categoryUrl.includes('?') ? `${categoryUrl}&page=${p}` : `${categoryUrl}?page=${p}`;
-      }
-      
-      paginatedUrl = paginatedUrl.replace(/requestId=[^&]+/, `requestId=${uuidv4()}`);
-      if (!/requestId=/.test(paginatedUrl)) {
-        paginatedUrl += (paginatedUrl.includes('?') ? '&' : '?') + `requestId=${uuidv4()}`;
-      }
-      pageUrls.push({ url: paginatedUrl, pageNumber: p });
+    const items = pickItems(resp);
+
+    if (!items.length) break;
+
+    for (const item of items) {
+      // ✅ НИКАКОГО isMagnumProduct — берём все товары
+      const product = buildProductObject(item, city);
+      const added = await addProduct(product);
+      if (added) totalAdded++;
     }
 
-    if (pageUrls.length === 0) break;
+    if (!pickHasMore(resp, items, page)) break;
 
-    const fetchPromises = pageUrls.map(pu => fetchWithRetry(pu.url));
-    const responses = await Promise.all(fetchPromises);
-
-    let anyData = false;
-    for (let i = 0; i < responses.length; i++) {
-      const data = responses[i];
-      if (!data || !Array.isArray(data.data) || data.data.length === 0) {
-        continue;
-      }
-      anyData = true;
-      for (const item of data.data) {
-        try {
-          if (!item) continue;
-          if (isMagnumProduct(item)) {
-            const product = buildProductObject(item, city);
-            if (addProduct(product)) {
-              categoryMatches++;
-            }
-          }
-        } catch (err) {
-          console.warn(`[WARN] Failed processing item in ${categoryName}: ${err.message}`);
-        }
-      }
-    }
-
-    page += pageUrls.length;
-    if (!anyData) keepGoing = false;
-    await sleep(CONFIG.REQUEST_DELAY);
+    page++;
+    if (CONFIG.REQUEST_DELAY) await sleep(CONFIG.REQUEST_DELAY);
   }
 
-  console.log(`[${categoryIndex}/${totalCategories}] Done: ${categoryName} - ${categoryMatches} items`);
-  return categoryMatches;
-};
+  return totalAdded;
+}
 
-// ==========================================
-// CONCURRENCY RUNNER
-// ==========================================
-const runWithConcurrency = async (tasks, concurrency) => {
-  const results = [];
-  const executing = new Set();
-
-  for (const task of tasks) {
-    const p = Promise.resolve().then(() => task());
-    results.push(p);
-
-    executing.add(p);
-    const remove = () => executing.delete(p);
-    p.then(remove).catch(remove);
-
-    if (executing.size >= concurrency) {
-      await Promise.race(executing);
-    }
-  }
-
-  return Promise.all(results);
-};
-
-// ==========================================
-// MAIN EXPORT
-// ==========================================
 export async function startParsing() {
-  console.log(`Starting Kaspi Parser (concurrency=${CONFIG.CONCURRENCY}, pageParallel=${CONFIG.PAGE_PARALLEL}, MAX_PAGE=${CONFIG.MAX_PAGE === null ? 'none' : CONFIG.MAX_PAGE})`);
-  console.log(`${CATEGORY_URLS.length} categories to process`);
-  const startTime = Date.now();
+  const urls = readCategoriesJson();
+  console.log(`[START] categories urls: ${urls.length}`);
 
-  try {
-    const tasks = CATEGORY_URLS.map((url, index) => {
-      return () => processCategory(url, index + 1, CATEGORY_URLS.length);
-    });
+  let grandTotal = 0;
 
-    await runWithConcurrency(tasks, CONFIG.CONCURRENCY);
-  } catch (error) {
-    console.error('Critical Error:', error && error.message ? error.message : error);
-  } finally {
-    fs.writeFileSync(CONFIG.OUTPUT_FILE, JSON.stringify(allResults, null, 2), 'utf8');
-    const elapsed = ((Date.now() - startTime) / 1000).toFixed(1);
-    console.log('='.repeat(60));
-    console.log(`Done! Saved ${allResults.length} unique items to ${CONFIG.OUTPUT_FILE}`);
-    console.log(`Total time: ${elapsed}s`);
-    console.log('='.repeat(60));
+  for (let i = 0; i < urls.length; i++) {
+    const url = urls[i];
+    console.log(`\n[CATEGORY ${i + 1}/${urls.length}] ${url}`);
+
+    try {
+      const added = await parseCategory(url);
+      grandTotal += added;
+      console.log(`[CATEGORY DONE] added=${added}, total=${grandTotal}`);
+    } catch (e) {
+      console.warn(`[CATEGORY FAIL] ${e?.message || e}`);
+    }
   }
+
+  await finalizeStorage();
+  console.log(`\n[DONE] total added=${grandTotal}`);
 }
