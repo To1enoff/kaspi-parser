@@ -2,4 +2,7 @@ node_modules/
 trash/
 output/products.json
 
+# env files
 .env
+.env.*
+!.env.example
