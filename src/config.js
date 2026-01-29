@@ -4,7 +4,9 @@ export const CONFIG = {
   CHECKPOINT_INTERVAL: 500,
   REQUEST_DELAY: 150,
   MAX_RETRIES: 4,
-  CONCURRENCY: 1,
+  CONCURRENCY: 3,
+  RETRY_ATTEMPTS: 5,
+  ONLY_MISSING: true,
   PAGE_PARALLEL: 3,
   MAX_PAGE: 300,
 
@@ -39,6 +41,6 @@ export const OFFERS = {
   USE_MAGNUM_ZONE: false, // false = ВСЕ продавцы
   ZONE_ID: "Magnum_ZONE1",
   LIMIT: 20,
-  CONCURRENCY: 1,
+  CONCURRENCY: 8,
 };
 
