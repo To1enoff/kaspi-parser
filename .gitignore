@@ -2,3 +2,4 @@ node_modules/
 trash/
 output/products.json
 
+.env
