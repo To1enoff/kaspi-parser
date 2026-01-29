@@ -143,4 +143,6 @@ export async function startParsing() {
 
   await finalizeStorage();
   console.log(`\n[DONE] total added=${grandTotal}`);
+  process.exit(0);
+  
 }

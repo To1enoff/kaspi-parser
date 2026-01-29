@@ -6,7 +6,7 @@ import { getCollections } from "./src/models.js";
 const bot = new Telegraf(process.env.BOT_TOKEN);
 const CHAT_ID = process.env.ALERT_CHAT_ID;
 
-const EVERY_MIN = Number(process.env.PRICE_CHECK_MIN || 15);
+const EVERY_MIN = Number(process.env.PRICE_CHECK_MIN || 5);
 
 let running = false;
 

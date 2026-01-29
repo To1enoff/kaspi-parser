@@ -1,8 +1,3 @@
 [
-  
-  "https://kaspi.kz/yml/product-view/pl/filters?q=%3AavailableInZones%3AMagnum_ZONE1%3Acategory%3ASmartphones%20and%20gadgets%3AmanufacturerName%3ASamsung&text&all=false&sort=relevance&ui=d&i=-1&c=710000000",
-  "https://kaspi.kz/yml/product-view/pl/filters?q=%3AavailableInZones%3AMagnum_ZONE1%3Acategory%3ASmartphones%20and%20gadgets%3AmanufacturerName%3ASamsung&text&all=false&sort=relevance&ui=d&i=-1&c=353220100",
-  "https://kaspi.kz/yml/product-view/pl/filters?q=%3AavailableInZones%3AMagnum_ZONE1%3Acategory%3ASmartphones%20and%20gadgets%3AmanufacturerName%3ASamsung&text&all=false&sort=relevance&ui=d&i=-1&c=471010000",
-  "https://kaspi.kz/yml/product-view/pl/filters?q=%3AavailableInZones%3AMagnum_ZONE1%3Acategory%3ASmartphones%20and%20gadgets%3AmanufacturerName%3ASamsung&text&all=false&sort=relevance&ui=d&i=-1&c=271010000"
-
+"https://kaspi.kz/yml/product-view/pl/filters?text=Samsung%20Galaxy&page=0&all=false&fl=true&ui=d&q=%3AavailableInZones%3AMagnum_ZONE1&i=-1&c=750000000"
 ]
