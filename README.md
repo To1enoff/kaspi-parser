@@ -29,3 +29,7 @@ node index.js
 node enrich_offers.js
 ```
 
+## 4) Tracking in Telegram bot
+node loop.js
+
+
